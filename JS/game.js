@@ -159,7 +159,7 @@ $(document).ready(function () {
       case 3:
         try {
           localStorage.removeItem("save");
-        } catch (e) {}
+        } catch (e) { }
         location.reload();
         break;
       default:
@@ -278,7 +278,7 @@ var gameScene = new Phaser.Class({
     this.adManager = new adManager();
 
     this.input.on("pointerdown", (ptr) => {
-      const scale = 0.08 * ((tokenUpgrades[3].level - 1) * 0.5 + 1);
+      const scale = 0.08 * tokenUpgrades["click_area"].getValue();
       let target = this.add
         .image(ptr.worldX, ptr.worldY, "circle")
         .setScale(scale)
@@ -291,13 +291,7 @@ var gameScene = new Phaser.Class({
           40 + scale * 250
         ) {
           ballCount++;
-          ball.value = ball.value.mul(
-            tokenUpgrades[4].value
-              .mul(
-                tokenUpgrades[4].valueModifier.pow(tokenUpgrades[4].level - 1)
-              )
-              .div(100)
-          );
+          ball.value = ball.value.mul(tokenUpgrades["click_multiplier"].getValue());
           if (scene.adManager.doublePoints) {
             ball.value = ball.value.mul(2);
           }
@@ -372,9 +366,7 @@ var gameScene = new Phaser.Class({
         }
         // console.log(delayFrame)
         if (counter % delayFrame == 0) {
-          const mod = tokenUpgrades[0].value
-            .mul(tokenUpgrades[0].valueModifier.pow(tokenUpgrades[0].level - 1))
-            .div(100);
+          const mod = tokenUpgrades["ball_multiplier"].getValue()
           const value = mod.mul(
             spawns[i].value.mul(
               spawns[i].valueModifier.pow(spawns[i].level - 1)
@@ -387,8 +379,7 @@ var gameScene = new Phaser.Class({
             delayFrame,
             spawns[i].stage,
             // THIS IS NOT INCLUDING SPAWN BONUS
-            value,
-            spawns[i].level
+            value
           );
         }
       }
@@ -403,22 +394,18 @@ var gameScene = new Phaser.Class({
       ball = balls[i];
       if (ball.y > ball.stage * 1500 - 70) {
         score(ball);
-        let success =
-          100 -
-          tokenUpgrades[1].value.plus(tokenUpgrades[1].level - 1).toNumber();
+        let survival_chance = tokenUpgrades["ball_survival_chance"].getValue();
         if (scene.adManager.noDespawn) {
-          success = 0;
+          survival_chance = 1;
         }
-        if (
-          !(
-            Phaser.Math.Between(0, 100) > success && ball.stage < zones.length
-          ) ||
-          balls.length > 700
+        if (Phaser.Math.Between(0, 99) / 100 < survival_chance
+          && ball.stage < zones.length
+          && balls.length > 700
         ) {
+          ball.stage++;
+        } else {
           ball.destroy();
           balls.splice(i, 1);
-        } else {
-          ball.stage++;
         }
       }
     }
@@ -612,11 +599,7 @@ var config = {
 };
 
 function score(ball) {
-  const mod = new Decimal(
-    tokenUpgrades[6].value.mul(
-      tokenUpgrades[6].valueModifier.pow(tokenUpgrades[6].level - 1)
-    )
-  ).div(100);
+  const mod = tokenUpgrades["zone_multiplier"].getValue();
   let modifier = new Decimal(zones[ball.stage - 1].modifier).mul(mod);
   let score = new Decimal(ball.value * modifier);
   if (scene.adManager.doublePoints) {
@@ -645,14 +628,12 @@ function score(ball) {
   drawShopPanel();
 }
 
-function generateBall(x, y, image, delayFrame, stage, value, level) {
+function generateBall(x, y, image, delayFrame, stage, value) {
   if (x == -1) {
     x = Phaser.Math.Between(10, 670);
   }
   var ball = this.matter.add.image(x, y, "balls", image);
-  const success =
-    100 - tokenUpgrades[2].value.plus(tokenUpgrades[2].level - 1).toNumber();
-  if (Phaser.Math.Between(0, 100) > success) {
+  if (Phaser.Math.Between(0, 99) / 100 < tokenUpgrades["double_ball_value"].getValue()) {
     value = value.mul(2);
   }
   ball.setStatic(true);
@@ -730,7 +711,7 @@ function generateZone(level = 0) {
         }
       });
     }
-    const mod = (100 - tokenUpgrades[5].level + 1) / 100;
+    const mod = tokenUpgrades["zone_unlock_cost"].getValue();
     const lockPrice = new Decimal(zonePrices[zoneCount] * mod);
     lockedContainer.price = new Decimal(lockPrice);
     lockedContainer.list[1].text = displayNumber(lockPrice);
@@ -1382,14 +1363,14 @@ function upgradeSpawn(spawn) {
 }
 
 function upgradeToken(token) {
-  var cost = token.cost.mul(token.costModifier.pow(token.level + 1));
+  var cost = token.getCost();
   if (tokens.lt(cost) || token.level === token.maxLevel) {
     return -1;
   }
   tokens = tokens.minus(cost);
   $("#tokenValue").html(displayNumber(tokens));
   token.level++;
-  const mod = (100 - tokenUpgrades[5].level + 1) / 100;
+  const mod = tokenUpgrades["zone_unlock_cost"].getValue();
   const lockPrice = new Decimal(zonePrices[zoneCount] * mod);
   lockedContainer.price = new Decimal(lockPrice);
   lockedContainer.list[1].text = displayNumber(lockPrice);
@@ -1430,7 +1411,7 @@ function displayNumber(y) {
 
 function checkLock() {
   if (zoneCount < 8) {
-    const mod = (100 - tokenUpgrades[5].level + 1) / 100;
+    const mod = tokenUpgrades["zone_unlock_cost"].getValue();
     const lockPrice = new Decimal(lockedContainer.price * mod);
     if (lockedContainer.price.lte(currentScore)) {
       lockedContainer.locked = false;
@@ -1487,8 +1468,8 @@ function parseVertices(vertexSets, options) {
           for (z = 0; z < partB.vertices.length; z++) {
             // find distances between the vertices
             var da = Matter.Vector.magnitudeSquared(
-                Matter.Vector.sub(pav[(k + 1) % pav.length], pbv[z])
-              ),
+              Matter.Vector.sub(pav[(k + 1) % pav.length], pbv[z])
+            ),
               db = Matter.Vector.magnitudeSquared(
                 Matter.Vector.sub(pav[k], pbv[(z + 1) % pbv.length])
               );
@@ -1521,9 +1502,7 @@ function drawShopPanel() {
         $("#ball" + i + "Cost").css("color", "black");
         $("#ball" + i + "Lock").show();
       } else {
-        const mod = tokenUpgrades[0].value
-          .mul(tokenUpgrades[0].valueModifier.pow(tokenUpgrades[0].level - 1))
-          .div(100);
+        const mod = tokenUpgrades["ball_multiplier"].getValue();
         if (spawn.level === 0) {
           $("#ball" + i + "Value").html(
             displayNumber(
@@ -1538,27 +1517,27 @@ function drawShopPanel() {
             displayNumber(
               mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level - 1)))
             ) +
-              " > " +
-              displayNumber(
-                mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level)))
-              )
+            " > " +
+            displayNumber(
+              mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level)))
+            )
           );
           $("#ball" + i + "Cooldown").html(
             displayNumber(
               spawn.cooldown - spawn.speedModifier * (spawn.level - 1)
             ) +
-              " > " +
-              displayNumber(spawn.cooldown - spawn.speedModifier * spawn.level)
+            " > " +
+            displayNumber(spawn.cooldown - spawn.speedModifier * spawn.level)
           );
         } else {
           $("#ball" + i + "Value").html(
             displayNumber(
               mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level - 1)))
             ) +
-              " > " +
-              displayNumber(
-                mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level)))
-              )
+            " > " +
+            displayNumber(
+              mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level)))
+            )
           );
           $("#ball" + i + "Cooldown").html(
             displayNumber(spawn.cooldown - spawn.speedModifier * 10) + " > MAX"
@@ -1589,11 +1568,7 @@ function drawShopPanel() {
         }
         $("#zone" + i + "cost").html(displayNumber(cost));
         $("#zone" + i + "cost").css("color", color);
-        const mod = new Decimal(
-          tokenUpgrades[6].value.mul(
-            tokenUpgrades[6].valueModifier.pow(tokenUpgrades[6].level - 1)
-          )
-        ).div(100);
+        const mod = tokenUpgrades["zone_multiplier"].getValue();
         let modifier = new Decimal(zones[i].modifier).mul(mod);
         modifier = Math.round(modifier * 100) + "%";
         $("#zone" + i + "mod").html(modifier);
@@ -1610,94 +1585,34 @@ function drawShopPanel() {
   }
   if ($("#tokenShop").is(":visible")) {
     $("#prestigeToken").html(displayNumber(calcuateTokens()));
-    for (var i = 0; i < 8; i++) {
-      if (tokenUpgrades.length > i) {
-        const tokenUpgrade = tokenUpgrades[i];
-        if (i === 1 || i === 2 || i === 5) {
-          if (tokenUpgrade.level !== tokenUpgrade.maxLevel) {
-            $("#token" + i + "Value").html(
-              displayNumber(tokenUpgrade.value.plus(tokenUpgrade.level - 1)) +
-                "% > " +
-                displayNumber(tokenUpgrade.value.plus(tokenUpgrade.level)) +
-                "%"
-            );
-            const cost = tokenUpgrade.cost.mul(
-              tokenUpgrade.costModifier.pow(tokenUpgrade.level + 1)
-            );
-            let color = "black";
-            if (cost.gte(tokens)) {
-              color = "red";
-            }
-            $("#token" + i + "Cost").html(displayNumber(cost));
-            $("#token" + i + "Cost").css("color", color);
-          } else {
-            $("#token" + i + "Value").html(
-              displayNumber(tokenUpgrade.value.plus(tokenUpgrade.level - 1)) +
-                "%"
-            );
-            $("#token" + i + "Cost").html("MAX");
-          }
-          $("#token" + i + "Level").html(
-            tokenUpgrade.level - 1 + "/" + (tokenUpgrade.maxLevel - 1)
-          );
-        } else if (i === 3) {
-          if (tokenUpgrade.level !== tokenUpgrade.maxLevel) {
-            $("#token" + i + "Value").html(
-              displayNumber(
-                tokenUpgrade.value.plus((tokenUpgrade.level - 1) * 50)
-              ) +
-                "% > " +
-                displayNumber(
-                  tokenUpgrade.value.plus(tokenUpgrade.level * 50)
-                ) +
-                "%"
-            );
-            const cost = tokenUpgrade.cost.mul(
-              tokenUpgrade.costModifier.pow(tokenUpgrade.level + 1)
-            );
-            let color = "black";
-            if (cost.gte(tokens)) {
-              color = "red";
-            }
-            $("#token" + i + "Cost").html(displayNumber(cost));
-            $("#token" + i + "Cost").css("color", color);
-          } else {
-            $("#token" + i + "Value").html(
-              displayNumber(
-                tokenUpgrade.value.plus((tokenUpgrade.level - 1) * 50)
-              ) + "%"
-            );
-            $("#token" + i + "Cost").html("MAX");
-          }
-          $("#token" + i + "Level").html(
-            tokenUpgrade.level - 1 + "/" + (tokenUpgrade.maxLevel - 1)
-          );
-        } else {
-          $("#token" + i + "Value").html(
-            displayNumber(
-              tokenUpgrade.value.mul(
-                tokenUpgrade.valueModifier.pow(tokenUpgrade.level - 1)
-              )
-            ) +
-              "% > " +
-              displayNumber(
-                tokenUpgrade.value.mul(
-                  tokenUpgrade.valueModifier.pow(tokenUpgrade.level)
-                )
-              ) +
-              "%"
-          );
-          const cost = tokenUpgrade.cost.mul(
-            tokenUpgrade.costModifier.pow(tokenUpgrade.level + 1)
-          );
-          let color = "black";
-          if (cost.gte(tokens)) {
-            color = "red";
-          }
-          $("#token" + i + "Cost").html(displayNumber(cost));
-          $("#token" + i + "Level").html(tokenUpgrade.level - 1);
-          $("#token" + i + "Cost").css("color", color);
+    for (let upgrade_name in tokenUpgrades) {
+      let tokenUpgrade = tokenUpgrades[upgrade_name];
+      // Update bonus and cost
+      if (tokenUpgrade.level !== tokenUpgrade.maxLevel) {
+        $("#" + upgrade_name + "Value").html(
+          displayNumber(tokenUpgrade.getValue().mul(100) + "% > " + tokenUpgrade.getNextValue().mul(100)) + "%"
+        );
+        const cost = tokenUpgrade.getCost();
+        let color = "black";
+        if (cost.gte(tokens)) {
+          color = "red";
         }
+        $("#" + upgrade_name + "Cost").html(displayNumber(cost));
+        $("#" + upgrade_name + "Cost").css("color", color);
+      } else {
+        $("#" + upgrade_name + "Value").html(
+          displayNumber(tokenUpgrade.value.plus(tokenUpgrade.level)) +
+          "%"
+        );
+        $("#" + upgrade_name + "Cost").html("MAX");
+      }
+      // Update level
+      if (tokenUpgrade.maxLevel === undefined) {
+        $("#" + upgrade_name + "Level").html(tokenUpgrade.level);
+      } else {
+        $("#" + upgrade_name + "Level").html(
+          (tokenUpgrade.level) + "/" + (tokenUpgrade.maxLevel)
+        );
       }
     }
   }
@@ -1802,11 +1717,7 @@ function calcuateTokens() {
   let tokenCost = new Decimal(125000);
   let score = new Decimal(totalScore);
   let tokens = new Decimal(0);
-  const mod = new Decimal(
-    tokenUpgrades[7].value.mul(
-      tokenUpgrades[7].valueModifier.pow(tokenUpgrades[7].level - 1)
-    )
-  ).div(100);
+  const mod = tokenUpgrades["token_multiplier"].getValue()
   while (score.gte(tokenCost)) {
     score = score.minus(tokenCost);
     tokens = tokens.plus(1);
@@ -1825,9 +1736,9 @@ function updateProgress() {
     totalScore = totalScore.plus(addedScore);
     $("#offlineText").html(
       "Inactive for " +
-        displayNumber(Math.floor(millis)) +
-        " seconds<br/>Total Earned: " +
-        displayNumber(addedScore)
+      displayNumber(Math.floor(millis)) +
+      " seconds<br/>Total Earned: " +
+      displayNumber(addedScore)
     );
     $("#offlineProgress").show();
     drawShopPanel();
@@ -1843,9 +1754,7 @@ function calculateScorePerSecond() {
       if (spawns[i].level > 10) {
         cooldown = spawns[i].cooldown - spawns[i].speedModifier * 10;
       }
-      const mod = tokenUpgrades[0].value
-        .mul(tokenUpgrades[0].valueModifier.pow(tokenUpgrades[0].level - 1))
-        .div(100);
+      const mod = tokenUpgrades["ball_multiplier"].getValue();
       const value = mod.mul(
         spawns[i].value.mul(spawns[i].valueModifier.pow(spawns[i].level - 1))
       );

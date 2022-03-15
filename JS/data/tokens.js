@@ -1,67 +1,122 @@
-var token1 = {};
-token1.level = 1;
-token1.valueModifier = new Decimal(1.1);
-token1.value = new Decimal(100);
-token1.costModifier = new Decimal(1.8);
-token1.cost = new Decimal(5);
+function getCost(token) {
+    return token.cost.mul(token.costModifier.pow(token.level + 2));
+}
+function getNextValue(token) {
+    token.level += 1;
+    let value = token.getValue();
+    token.level -= 1;
+    return value
+}
 
-var token2 = {};
-token2.level = 1;
-token2.value = new Decimal(30);
-token2.costModifier = new Decimal(1.8);
-token2.cost = new Decimal(10);
-token2.maxLevel = 31;
+var ball_multiplier = {};
+ball_multiplier.level = 0;
+ball_multiplier.valueModifier = new Decimal(1.1);
+ball_multiplier.value = new Decimal(1);
+ball_multiplier.costModifier = new Decimal(1.8);
+ball_multiplier.cost = new Decimal(5);
+ball_multiplier.getValue = function () {
+    return ball_multiplier.value.mul(ball_multiplier.valueModifier.pow(ball_multiplier.level))
+}
+ball_multiplier.getNextValue = () => getNextValue(ball_multiplier);
+ball_multiplier.getCost = () => getCost(ball_multiplier);
 
-var token3 = {};
-token3.level = 1;
-token3.value = new Decimal(0);
-token3.costModifier = new Decimal(1.8);
-token3.cost = new Decimal(7.5);
-token3.maxLevel = 51;
+var ball_survival_chance = {};
+ball_survival_chance.level = 0;
+ball_survival_chance.value = new Decimal(30);
+ball_survival_chance.costModifier = new Decimal(1.8);
+ball_survival_chance.cost = new Decimal(10);
+ball_survival_chance.maxLevel = 30;
+ball_survival_chance.getValue = function () {
+    return new Decimal(ball_survival_chance.value.add(ball_survival_chance.level)).div(100);
+}
+ball_survival_chance.getNextValue = () => getNextValue(ball_survival_chance);
+ball_survival_chance.getCost = () => getCost(ball_survival_chance);
 
-var token4 = {};
-token4.level = 1;
-token4.value = new Decimal(100);
-token4.costModifier = new Decimal(1.8);
-token4.cost = new Decimal(2);
-token4.maxLevel = 11;
+var double_ball_value = {};
+double_ball_value.level = 0;
+double_ball_value.value = new Decimal(0);
+double_ball_value.costModifier = new Decimal(1.8);
+double_ball_value.cost = new Decimal(7.5);
+double_ball_value.maxLevel = 51;
+double_ball_value.getValue = function () {
+    return new Decimal(double_ball_value.level).div(100);
+}
+double_ball_value.getNextValue = () => getNextValue(double_ball_value);
+double_ball_value.getCost = () => getCost(double_ball_value);
 
-var token5 = {};
-token5.level = 1;
-token5.valueModifier = new Decimal(1.1);
-token5.value = new Decimal(125);
-token5.costModifier = new Decimal(1.8);
-token5.cost = new Decimal(12);
+var click_area = {};
+click_area.level = 0;
+click_area.value = new Decimal(100);
+click_area.costModifier = new Decimal(1.8);
+click_area.cost = new Decimal(2);
+click_area.maxLevel = 11;
+click_area.getValue = function () {
+    return new Decimal(1 + click_area.level * 0.5);
+}
+click_area.getNextValue = () => getNextValue(click_area);
+click_area.getCost = () => getCost(click_area);
 
-var token6 = {};
-token6.level = 1;
-token6.value = new Decimal(0);
-token6.costModifier = new Decimal(1.8);
-token6.cost = new Decimal(7.5);
-token6.maxLevel = 51;
+var click_multiplier = {};
+click_multiplier.level = 0;
+click_multiplier.valueModifier = new Decimal(1.1);
+click_multiplier.value = new Decimal(125);
+click_multiplier.costModifier = new Decimal(1.8);
+click_multiplier.cost = new Decimal(12);
+click_multiplier.getValue = function () {
+    return click_multiplier.value.mul(click_multiplier.valueModifier.pow(click_multiplier.level)).div(100);
+}
+click_multiplier.getNextValue = () => getNextValue(click_multiplier);
+click_multiplier.getCost = () => getCost(click_multiplier);
 
-var token7 = {};
-token7.level = 1;
-token7.valueModifier = new Decimal(1.1);
-token7.value = new Decimal(100);
-token7.costModifier = new Decimal(1.8);
-token7.cost = new Decimal(5);
+var zone_unlock_cost = {};
+zone_unlock_cost.level = 0;
+zone_unlock_cost.value = new Decimal(0);
+zone_unlock_cost.costModifier = new Decimal(1.8);
+zone_unlock_cost.cost = new Decimal(7.5);
+zone_unlock_cost.maxLevel = 50;
+zone_unlock_cost.getValue = function () {
+    return new Decimal(1 - (zone_unlock_cost.level) / 100);
+}
+zone_unlock_cost.getNextValue = () => getNextValue(zone_unlock_cost);
+zone_unlock_cost.getCost = () => getCost(zone_unlock_cost);
 
-var token8 = {};
-token8.level = 1;
-token8.valueModifier = new Decimal(1.1);
-token8.value = new Decimal(100);
-token8.costModifier = new Decimal(1.8);
-token8.cost = new Decimal(10);
+var zone_multiplier = {};
+zone_multiplier.level = 0;
+zone_multiplier.valueModifier = new Decimal(1.1);
+zone_multiplier.value = new Decimal(100);
+zone_multiplier.costModifier = new Decimal(1.8);
+zone_multiplier.cost = new Decimal(5);
+zone_multiplier.getValue = function () {
+    return zone_multiplier.value.mul(
+        zone_multiplier.valueModifier.pow(zone_multiplier.level)
+    ).div(100)
+}
+zone_multiplier.getNextValue = () => getNextValue(zone_multiplier);
+zone_multiplier.getCost = () => getCost(zone_multiplier);
 
-var tokenUpgrades = []; //tokens array
-tokenUpgrades.push(token1);
-tokenUpgrades.push(token2);
-tokenUpgrades.push(token3);
-tokenUpgrades.push(token4);
-tokenUpgrades.push(token5);
-tokenUpgrades.push(token6);
-tokenUpgrades.push(token7);
-tokenUpgrades.push(token8);
+var token_multiplier = {};
+token_multiplier.level = 0;
+token_multiplier.valueModifier = new Decimal(1.1);
+token_multiplier.value = new Decimal(100);
+token_multiplier.costModifier = new Decimal(1.8);
+token_multiplier.cost = new Decimal(10);
+token_multiplier.getValue = function () {
+    return token_multiplier.value.mul(
+        token_multiplier.valueModifier.pow(token_multiplier.level)
+    ).div(100);
+}
+token_multiplier.getNextValue = () => getNextValue(token_multiplier);
+token_multiplier.getCost = () => getCost(token_multiplier);
+
+var tokenUpgrades = {
+    "ball_multiplier": ball_multiplier,
+    "ball_survival_chance": ball_survival_chance,
+    "double_ball_value": double_ball_value,
+    "click_area": click_area,
+    "click_multiplier": click_multiplier,
+    "zone_unlock_cost": zone_unlock_cost,
+    "zone_multiplier": zone_multiplier,
+    "token_multiplier": token_multiplier,
+};
 
 var tokenTemplate = JSON.parse(JSON.stringify(tokenUpgrades));
