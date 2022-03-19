@@ -10,6 +10,7 @@
   <script src="JS/GameAnalytics.js"></script>
   <script src="JS/data/spawns.js?123"></script>
   <script src="JS/data/tokens.js?123"></script>
+  <script src="JS/data/zones.js?123"></script>
   <script src="JS/analytics.js"></script>
   <script src="JS/manager.js?123"></script>
   <script src="JS/game.js?123"></script>
@@ -54,8 +55,6 @@
       <div id='offlineText'></div>
       <div id='offlineClose'>Ok!</div>
     </div>
-    <div id="scrollUp" class='scroll'></div>
-    <div id="scrollDown" class='scroll'></div>
     <div id="currencyPanel">
       <div class="currencyContainer" style="background-color: #ce9c4f; margin-right: 12px;">
         <div id="goldLogo"></div>
@@ -266,14 +265,14 @@
             <div id='ball_survival_chanceLevel' class='tokenLevel'></div>
             <div id='ball_survival_chanceLock' class="locked"></div>
           </div>
-          <div class="tokenUpgrade" value='double_ball_value'>
+          <div class="tokenUpgrade" value='double_ball_value_chance'>
             <div class="container">
               <div class="tokenIcon">Double Ball Value Chance</div>
-              Effect: <span id='double_ball_valueValue'></span><br>Cost: <span id='double_ball_valueCost'
+              Effect: <span id='double_ball_value_chanceValue'></span><br>Cost: <span id='double_ball_value_chanceCost'
                 style="color:black"></span>
             </div>
-            <div id='double_ball_valueLevel' class='tokenLevel'></div>
-            <div id='double_ball_valueLock' class="locked"></div>
+            <div id='double_ball_value_chanceLevel' class='tokenLevel'></div>
+            <div id='double_ball_value_chanceLock' class="locked"></div>
           </div>
           <div class="tokenUpgrade" value='click_area'>
             <div class="container">

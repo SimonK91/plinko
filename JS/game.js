@@ -1,4 +1,3 @@
-let block;
 let zoneStrings = [
   "Shrinks Zone Diamonds",
   "Increase Cross Rotation",
@@ -31,8 +30,11 @@ let suffixes = [
   "NDc",
   "Vi",
 ];
+
+let saveInterval = 2000;  // 20 second save interval
 let numberFormat = "eng";
 let resetCounter = 0;
+let gameState = getEmptyGameState();
 let game;
 var counter = 0; //spawn loop counter
 var counter2 = 0; //title loop counter
@@ -45,22 +47,16 @@ var lastY = 0; // | drag variables
 var dirY = 0; // \
 var camera; //camera object
 var scene; //scene object
-var zoneCount = 0; //number of zones spawned
 var zones = []; //array of zones
 var lockedContainer; //locked button for next zone
 var menuContainer; //menu container
 var graphics; //graphics object
-var currentScore = new Decimal(0); //total score
-var totalScore = new Decimal(0); //total score
-var tokens = new Decimal(0); //total score
 var fric = 0;
 var selectedPanel = 0; //selected store panel
 var zonePrices = [
   500, 2500, 50000, 750000, 15000000, 150000000, 2500000000, 55000000000,
 ];
 var text;
-var scrollDown = false;
-var scrollUp = false;
 var prestigeConfirm = false;
 var currentTime;
 
@@ -186,31 +182,6 @@ $(document).ready(function () {
     prestigeConfirm = false;
   });
 
-  $("#scrollDown")
-    .mousedown(function () {
-      scrollDown = true;
-    })
-    .mouseup(function () {
-      scrollDown = false;
-      dirY = 0;
-    })
-    .on("mouseleave", function () {
-      scrollDown = false;
-      dirY = 0;
-    });
-
-  $("#scrollUp")
-    .mousedown(function () {
-      scrollUp = true;
-    })
-    .mouseup(function () {
-      scrollUp = false;
-      dirY = 0;
-    })
-    .on("mouseleave", function () {
-      scrollUp = false;
-      dirY = 0;
-    });
 });
 
 var gameScene = new Phaser.Class({
@@ -251,7 +222,7 @@ var gameScene = new Phaser.Class({
 
     this.input.on("pointermove", (ptr) => {
       if (pointerdown && !isDragging) {
-        if (ptr.y - startY) {
+        if (ptr.y - startY != 0) {
           isDragging = true;
           lastY = ptr.y;
         }
@@ -278,57 +249,19 @@ var gameScene = new Phaser.Class({
     this.adManager = new adManager();
 
     this.input.on("pointerdown", (ptr) => {
-      const scale = 0.08 * tokenUpgrades["click_area"].getValue();
-      let target = this.add
-        .image(ptr.worldX, ptr.worldY, "circle")
-        .setScale(scale)
-        .setAlpha(0.3);
-      let ballCount = 0;
-      for (let i = balls.length - 1; i >= 0; i--) {
-        let ball = balls[i];
-        if (
-          Math.abs(ball.x - ptr.worldX) + Math.abs(ball.y - ptr.worldY) <
-          40 + scale * 250
-        ) {
-          ballCount++;
-          ball.value = ball.value.mul(tokenUpgrades["click_multiplier"].getValue());
-          if (scene.adManager.doublePoints) {
-            ball.value = ball.value.mul(2);
-          }
-          currentScore = currentScore.add(ball.value);
-          totalScore = totalScore.add(ball.value);
-          let text = scene.add.text(ball.x, ball.y, displayNumber(ball.value), {
-            fontFamily: "neue",
-            fontSize: 12,
-            color: "#ffff00",
-          });
-          text.tween = scene.tweens.add({
-            targets: text,
-            y: ball.y - 50,
-            duration: 700,
-            ease: "Linear",
-            onComplete: function (tween, targets) {
-              targets[0].destroy();
-            },
-          });
-          ball.destroy();
-          balls.splice(i, 1);
-        }
-      }
-      if (ballCount > 0) {
-        $("#goldValue").html(displayNumber(currentScore));
-        checkLock();
-        drawShopPanel();
-      }
+      const scale = 0.2 * tokenUpgrades["click_area"].getValue();
+      let target = this.add.image(ptr.worldX, ptr.worldY, "circle").setScale(scale).setAlpha(0.3);
       scene.tweens.add({
         targets: target,
         alpha: 0,
         duration: 300,
         ease: "Linear",
         onComplete: function (tween, targets) {
-          targets[0].destroy();
+          target.destroy();
         },
       });
+
+      handleMouseBreak(ptr, scale);
       pointerdown = true;
       dirY = 0;
     });
@@ -340,14 +273,6 @@ var gameScene = new Phaser.Class({
       currentTime = Date.now();
     }
 
-    if (scrollDown) {
-      dirY = -75;
-    }
-
-    if (scrollUp) {
-      dirY = 75;
-    }
-
     camera.scrollY -= dirY / 0.15 / 100;
     dirY -= dirY / 0.6 / 100;
     if (dirY < 3 && dirY > -3) {
@@ -355,37 +280,21 @@ var gameScene = new Phaser.Class({
     }
 
     for (var i = 0; i < spawns.length; i++) {
-      if (spawns[i].level > 0 && zones[spawns[i].stage - 1]) {
-        let delayFrame =
-          spawns[i].cooldown - spawns[i].speedModifier * (spawns[i].level - 1);
-        if (spawns[i].level > 10) {
-          delayFrame = spawns[i].cooldown - spawns[i].speedModifier * 10;
-        }
+      if (spawns[i].level > 0) {
+        let delayFrame = spawns[i].cooldown;
         if (scene.adManager.doubleSpawn) {
           delayFrame = Math.floor(delayFrame / 2);
         }
-        // console.log(delayFrame)
         if (counter % delayFrame == 0) {
-          const mod = tokenUpgrades["ball_multiplier"].getValue()
-          const value = mod.mul(
-            spawns[i].value.mul(
-              spawns[i].valueModifier.pow(spawns[i].level - 1)
-            )
-          );
           generateBall(
-            -1,
-            spawns[i].y,
-            i,
+            spawns[i],
             delayFrame,
-            spawns[i].stage,
-            // THIS IS NOT INCLUDING SPAWN BONUS
-            value
           );
         }
       }
     }
 
-    if (counter % 2000 == 0) {
+    if (counter % saveInterval == 0) {
       save();
     }
 
@@ -393,14 +302,15 @@ var gameScene = new Phaser.Class({
     for (let i = balls.length - 1; i >= 0; i--) {
       ball = balls[i];
       if (ball.y > ball.stage * 1500 - 70) {
-        score(ball);
+        const multiplier = tokenUpgrades["zone_multiplier"].getValue().mul(zones[ball.stage - 1].modifier);
+        scoreBall(ball, multiplier)
         let survival_chance = tokenUpgrades["ball_survival_chance"].getValue();
         if (scene.adManager.noDespawn) {
           survival_chance = 1;
         }
-        if (Phaser.Math.Between(0, 99) / 100 < survival_chance
+        if (randomChance() < survival_chance
           && ball.stage < zones.length
-          && balls.length > 700
+          && balls.length < 700
         ) {
           ball.stage++;
         } else {
@@ -598,44 +508,13 @@ var config = {
   scene: [titleScene, gameScene],
 };
 
-function score(ball) {
-  const mod = tokenUpgrades["zone_multiplier"].getValue();
-  let modifier = new Decimal(zones[ball.stage - 1].modifier).mul(mod);
-  let score = new Decimal(ball.value * modifier);
-  if (scene.adManager.doublePoints) {
-    score = score.mul(2);
-  }
-  currentScore = currentScore.add(score);
-  totalScore = totalScore.add(score);
-  $("#goldValue").html(displayNumber(currentScore));
-  if (ball.y > camera.scrollY && ball.y < camera.scrollY + 600) {
-    const text = scene.add.text(ball.x, ball.y, displayNumber(score), {
-      fontFamily: "Arial",
-      fontSize: 12,
-      color: "#ffff00",
-    });
-    scene.tweens.add({
-      targets: text,
-      y: ball.y - 50,
-      duration: 700,
-      ease: "Linear",
-      onComplete: function (tween, targets) {
-        text.destroy();
-      },
-    });
-  }
-  checkLock();
-  drawShopPanel();
-}
-
-function generateBall(x, y, image, delayFrame, stage, value) {
-  if (x == -1) {
-    x = Phaser.Math.Between(10, 670);
-  }
-  var ball = this.matter.add.image(x, y, "balls", image);
-  if (Phaser.Math.Between(0, 99) / 100 < tokenUpgrades["double_ball_value"].getValue()) {
+function generateBall(spawn, delayFrame) {
+  let x = Phaser.Math.Between(10, 670);
+  let value = spawn.value.mul(tokenUpgrades["ball_multiplier"].getValue());
+  if (randomChance() < tokenUpgrades["double_ball_value_chance"].getValue()) {
     value = value.mul(2);
   }
+  var ball = this.matter.add.image(x, spawn.y, "balls", spawns.indexOf(spawn));
   ball.setStatic(true);
   ball.setScale(0.05);
   scene.tweens.add({
@@ -650,7 +529,7 @@ function generateBall(x, y, image, delayFrame, stage, value) {
       ball.setCircle();
       ball.setFriction(fric);
       ball.setBounce(0.5);
-      ball.stage = stage;
+      ball.stage = spawn.stage;
       ball.value = value;
       balls.push(ball);
     },
@@ -658,34 +537,34 @@ function generateBall(x, y, image, delayFrame, stage, value) {
 }
 
 function generateZone(level = 0) {
-  var zone = new Object();
-  zone.type = zoneCount;
-  zone.shapes = [];
-  zone.tweens = [];
-  zone.level = level;
-  zone.modifier = 0.8 + zone.type * 0.1 + level * 0.05;
-  level = zone.level > 9 ? 9 : zone.level;
-  zone.costModifier = new Decimal(4.5);
+  var zone = available_zones[zones.length]
   zones.push(zone);
-  zoneCount++;
 
   matter.world.setBounds(
     0,
     0,
     680,
-    (zone.type + 1) * 1500,
+    (zones.length) * 1500,
     32,
     true,
     true,
     true,
     false
   );
-  camera.setBounds(0, 0, 680, (zone.type + 1) * 1500).setName("main");
+  camera.setBounds(0, 0, 680, zones.length * 1500).setName("main");
 
-  if (zoneCount < 8) {
-    if (lockedContainer) {
-      lockedContainer.y = zone.type * 1500 + 1445;
-    } else {
+  zone.level = level
+  zone.build();
+  for (var i in spawns) {
+    let spawn = spawns[i];
+    if (spawn.stage == zones.length) {
+      scene.add.line(0, 0, 0, spawn.y, 2000, spawn.y, spawn.color, 0.6)
+    }
+    spawn.enabled = spawn.stage <= zones.length;
+  }
+
+  if (zones.length < available_zones.length) {
+    if (!lockedContainer) {
       lockedButton = scene.add.sprite(20, 20, "locked");
       lockedText = scene.add
         .text(-75, 11, "", {
@@ -696,23 +575,21 @@ function generateZone(level = 0) {
         })
         .setFontStyle("bold");
       lockedContainer = scene.add
-        .container(140, zone.type * 1500 + 1445, [lockedButton, lockedText])
+        .container(140, 0, [lockedButton, lockedText])
         .setAlpha(0.8)
         .setSize(280, 55)
         .setInteractive();
 
       lockedContainer.on("pointerup", function () {
         if (!lockedContainer.locked) {
-          currentScore = currentScore.minus(lockedContainer.price);
-          $("#goldValue").html(displayNumber(currentScore));
           generateZone();
+          spendMoney(lockedContainer.price);
           dirY = -200;
-          drawShopPanel();
         }
       });
     }
-    const mod = tokenUpgrades["zone_unlock_cost"].getValue();
-    const lockPrice = new Decimal(zonePrices[zoneCount] * mod);
+    lockedContainer.y = zones.length * 1500 - 55;
+    const lockPrice = new Decimal(zonePrices[zones.length]);
     lockedContainer.price = new Decimal(lockPrice);
     lockedContainer.list[1].text = displayNumber(lockPrice);
     checkLock();
@@ -721,663 +598,56 @@ function generateZone(level = 0) {
     lockedText.destroy();
   }
 
-  if (zoneCount == 1) {
-    scene.add.line(0, 0, 0, 90, 2000, 90, 0xf84d3e, 0.6);
-    scene.add.line(0, 0, 0, 70, 2000, 70, 0x0085f3, 0.6);
-    scene.add.line(0, 0, 0, 50, 2000, 50, 0xd06ab8, 0.6);
-  } else if (zoneCount == 2) {
-    scene.add.line(0, 0, 0, 1530, 2000, 1530, 0x508a36, 0.6);
-    scene.add.line(0, 0, 0, 1550, 2000, 1550, 0x108a80, 0.6);
-    spawns[3].enabled = true;
-    spawns[4].enabled = true;
-  } else if (zoneCount == 3) {
-    scene.add.line(0, 0, 0, 3070, 2000, 3070, 0xffb45a, 0.6);
-    spawns[5].enabled = true;
-  } else if (zoneCount == 4) {
-    scene.add.line(0, 0, 0, 4570, 2000, 4570, 0xa57b36, 0.6);
-    spawns[6].enabled = true;
-  } else if (zoneCount == 5) {
-    scene.add.line(0, 0, 0, 6070, 2000, 6070, 0x727272, 0.6);
-    spawns[7].enabled = true;
-  } else if (zoneCount == 6) {
-    scene.add.line(0, 0, 0, 7570, 2000, 7570, 0x673eab, 0.6);
-    spawns[8].enabled = true;
-  } else if (zoneCount == 7) {
-    scene.add.line(0, 0, 0, 9070, 2000, 9070, 0x833b21, 0.6);
-    spawns[8].enabled = true;
-  }
-
   for (j = 0; j < 70; j++) {
     if (j % 2 == 0)
       scene.add.line(
         0,
         0,
         j * 10,
-        zone.type * 1500 + 1430,
+        zones.length * 1500 - 70,
         j * 10 + 10,
-        zone.type * 1500 + 1430,
+        zones.length * 1500 - 70,
         0xf84d3e,
         0.4
       );
   }
-
-  if (zone.type == 0) {
-    zone.levels = [3, 2.8, 2.6, 2.4, 2.2, 2, 1.8, 1.6, 1.4, 1.2, 1];
-    for (i = 0; i < 10; i++) {
-      for (j = 0; j < 8; j++) {
-        var shape1 = matter.add
-          .image(
-            0 + i * 68.5,
-            zone.type * 1500 + 200 + j * 150,
-            "rectangle",
-            null,
-            {
-              isStatic: true,
-            }
-          )
-          .setScale(zone.levels[level])
-          .setAngle(45);
-        var shape2 = matter.add
-          .image(
-            34 + i * 68.5,
-            zone.type * 1500 + 275 + j * 150,
-            "rectangle",
-            null,
-            {
-              isStatic: true,
-            }
-          )
-          .setScale(zone.levels[level])
-          .setAngle(45);
-        zone.shapes.push(shape1);
-        zone.shapes.push(shape2);
-      }
-    }
-  } else if (zone.type == 1) {
-    zone.levels = [125, 115, 105, 95, 85, 75, 65, 55, 45, 35];
-    for (i = 0; i < 3; i++) {
-      var shape1 = matter.add
-        .image(125, zone.type * 1500 + 200 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(30, 1)
-        .setAngle(10);
-      var shape2 = matter.add
-        .image(550, zone.type * 1500 + 200 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(30, 1)
-        .setAngle(-10);
-      var ramp1 = matter.add
-        .image(340, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(40, 1)
-        .setAngle(0);
-      var ramp2 = matter.add
-        .image(340, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(40, 1)
-        .setAngle(90);
-      var tween1 = scene.tweens.add({
-        targets: ramp1,
-        rotation: Phaser.Math.DegToRad(360),
-        duration: zone.levels[level] * 800,
-        ease: "Linear",
-        repeat: -1,
-      });
-      var tween2 = scene.tweens.add({
-        targets: ramp2,
-        rotation: Phaser.Math.DegToRad(450),
-        duration: zone.levels[level] * 800,
-        ease: "Linear",
-        repeat: -1,
-      });
-      zone.shapes.push(ramp1);
-      zone.shapes.push(ramp2);
-    }
-  } else if (zone.type == 2) {
-    zone.levels = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180];
-    for (i = 0; i < 6; i++) {
-      var shape1 = matter.add
-        .image(
-          240 - zone.levels[level],
-          zone.type * 1500 + 200 + i * 200,
-          "rectangle",
-          null,
-          {
-            isStatic: true,
-          }
-        )
-        .setScale(50, 1)
-        .setAngle(10);
-      var shape2 = matter.add
-        .image(
-          440 + zone.levels[level],
-          zone.type * 1500 + 300 + i * 200,
-          "rectangle",
-          null,
-          {
-            isStatic: true,
-          }
-        )
-        .setScale(50, 1)
-        .setAngle(-10);
-      zone.shapes.push(shape1);
-      zone.shapes.push(shape2);
-    }
-  } else if (zone.type == 3) {
-    zone.levels = [0.5, 0.47, 0.43, 0.4, 0.37, 0.33, 0.3, 0.27, 0.23, 0.2];
-    for (i = 0; i < 3; i++) {
-      var shape1 = matter.add
-        .image(0, zone.type * 1500 + 275 + i * 400, "circle")
-        .setScale(zone.levels[level])
-        .setCircle(zone.levels[level] * 250, {
-          isStatic: true,
-        });
-      var shape2 = matter.add
-        .image(480, zone.type * 1500 + 275 + i * 400, "circle")
-        .setScale(zone.levels[level])
-        .setCircle(zone.levels[level] * 250, {
-          isStatic: true,
-        });
-      var shape3 = matter.add
-        .image(240, zone.type * 1500 + 475 + i * 400, "circle")
-        .setScale(zone.levels[level])
-        .setCircle(zone.levels[level] * 250, {
-          isStatic: true,
-        });
-      var shape4 = matter.add
-        .image(720, zone.type * 1500 + 475 + i * 400, "circle")
-        .setScale(zone.levels[level])
-        .setCircle(zone.levels[level] * 250, {
-          isStatic: true,
-        });
-      zone.shapes.push(shape1);
-      zone.shapes.push(shape2);
-      zone.shapes.push(shape3);
-      zone.shapes.push(shape4);
-    }
-  } else if (zone.type == 4) {
-    zone.levels = [
-      [30, 150],
-      [35, 145],
-      [40, 140],
-      [45, 135],
-      [50, 130],
-      [60, 120],
-      [70, 110],
-      [75, 105],
-      [80, 100],
-      [85, 95],
-    ];
-    for (i = 0; i < 12; i++) {
-      for (j = 0; j < 8; j++) {
-        var shape1 = matter.add
-          .image(
-            10 + i * 60,
-            zone.type * 1500 + 200 + j * 150,
-            "rectangle",
-            null,
-            {
-              isStatic: true,
-            }
-          )
-          .setScale(7, 1)
-          .setAngle(zone.levels[level][0]);
-        var shape2 = matter.add
-          .image(
-            40 + i * 60,
-            zone.type * 1500 + 275 + j * 150,
-            "rectangle",
-            null,
-            {
-              isStatic: true,
-            }
-          )
-          .setScale(7, 1)
-          .setAngle(zone.levels[level][1]);
-        zone.shapes.push(shape1);
-        zone.shapes.push(shape2);
-      }
-    }
-  } else if (zone.type == 5) {
-    zone.levels = [125, 115, 105, 95, 85, 75, 65, 55, 45, 35];
-    for (i = 0; i < 3; i++) {
-      var shape1 = matter.add
-        .image(200, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(8)
-        .setAngle(45);
-      var shape2 = matter.add
-        .image(480, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(8)
-        .setAngle(45);
-      var shape3 = matter.add
-        .image(340, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(20, 1);
-      var shape4 = matter.add
-        .image(200, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(1, 12);
-      var shape5 = matter.add
-        .image(480, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(1, 12);
-      var shape6 = matter.add
-        .image(150, zone.type * 1500 + 200 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(30, 1)
-        .setAngle(10);
-      var shape7 = matter.add
-        .image(530, zone.type * 1500 + 200 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(30, 1)
-        .setAngle(-10);
-      var tween1 = scene.tweens.add({
-        targets: shape4,
-        x: 480,
-        duration: zone.levels[level] * 300,
-        ease: "Linear",
-        repeat: -1,
-      });
-      var tween2 = scene.tweens.add({
-        targets: shape5,
-        x: 200,
-        duration: zone.levels[level] * 300,
-        ease: "Linear",
-        repeat: -1,
-      });
-      zone.shapes.push(shape4);
-      zone.shapes.push(shape5);
-    }
-  } else if (zone.type == 6) {
-    zone.levels = [125, 115, 105, 95, 85, 75, 65, 55, 45, 35];
-    for (i = 0; i < 3; i++) {
-      for (j = -50; j < 600; j = j + 50) {
-        var shape = matter.add
-          .image(
-            j,
-            zone.type * 1500 + 290 + i * 400 - j / 5,
-            "rectangle",
-            null,
-            {
-              isStatic: true,
-            }
-          )
-          .setScale(4, 2)
-          .setAngle(10);
-        if (j != 550) {
-          var tween = scene.tweens.add({
-            targets: shape,
-            x: "+=50",
-            y: "-=10",
-            duration: zone.levels[level] * 100,
-            ease: "Linear",
-            repeat: -1,
-          });
-          zone.shapes.push(shape);
-        } else {
-          var tween = scene.tweens.add({
-            targets: shape,
-            x: "+=25",
-            y: "-=5",
-            scaleY: 0.01,
-            scaleX: 0.01,
-            duration: zone.levels[level] * 100,
-            ease: "Linear",
-            repeat: -1,
-          });
-          zone.shapes.push(shape);
-        }
-      }
-      for (j = 700; j > 100; j = j - 50) {
-        var shape = matter.add
-          .image(
-            j,
-            zone.type * 1500 + 340 + i * 400 + j / 5,
-            "rectangle",
-            null,
-            {
-              isStatic: true,
-            }
-          )
-          .setScale(4, 2)
-          .setAngle(-10);
-        if (j != 150) {
-          var tween = scene.tweens.add({
-            targets: shape,
-            x: "-=50",
-            y: "-=10",
-            duration: zone.levels[level] * 100,
-            ease: "Linear",
-            repeat: -1,
-          });
-          zone.shapes.push(shape);
-        } else {
-          var tween = scene.tweens.add({
-            targets: shape,
-            x: "-=25",
-            y: "-=5",
-            scaleY: 0.01,
-            scaleX: 0.01,
-            duration: zone.levels[level] * 100,
-            ease: "Linear",
-            repeat: -1,
-          });
-          zone.shapes.push(shape);
-        }
-      }
-    }
-  } else if (zone.type == 7) {
-    zone.levels = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135];
-    for (i = 0; i < 6; i++) {
-      var shape1 = matter.add
-        .image(
-          200 - zone.levels[level],
-          zone.type * 1500 + 200 + i * 200,
-          "rectangle",
-          null,
-          {
-            isStatic: true,
-          }
-        )
-        .setScale(70, 1)
-        .setAngle(10);
-      var shape2 = matter.add
-        .image(
-          200 - zone.levels[level],
-          zone.type * 1500 + 330 + i * 200,
-          "rectangle",
-          null,
-          {
-            isStatic: true,
-          }
-        )
-        .setScale(70, 1)
-        .setAngle(-10);
-      zone.shapes.push(shape1);
-      zone.shapes.push(shape2);
-    }
-    for (i = 0; i < 5; i++) {
-      var shape1 = matter.add
-        .image(
-          550 + zone.levels[level],
-          zone.type * 1500 + 300 + i * 200,
-          "rectangle",
-          null,
-          {
-            isStatic: true,
-          }
-        )
-        .setScale(70, 1)
-        .setAngle(-10);
-      var shape2 = matter.add
-        .image(
-          550 + zone.levels[level],
-          zone.type * 1500 + 430 + i * 200,
-          "rectangle",
-          null,
-          {
-            isStatic: true,
-          }
-        )
-        .setScale(70, 1)
-        .setAngle(10);
-      zone.shapes.push(shape1);
-      zone.shapes.push(shape2);
-    }
-  }
 }
 
 function upgradeZone(zone) {
-  var cost = new Decimal(zonePrices[zone.type]).mul(
-    zone.costModifier.pow(zone.level + 1)
-  );
-  if (currentScore.lt(cost)) {
-    return -1;
+  var cost = zone.cost
+  if (gameState.money.lt(cost)) {
+    return;
   }
-  zone.level++;
-  currentScore = currentScore.minus(cost);
-  zone.modifier = 0.8 + zone.type * 0.1 + zone.level * 0.05;
-
-  if (zone.level > 8) {
-    drawShopPanel();
-    return 1;
-  }
-
-  if (zone.type == 0) {
-    zone.shapes.forEach(function (shape) {
-      shape.setScale(zone.levels[zone.level]);
-    });
-  } else if (zone.type == 3) {
-    zone.shapes.forEach(function (shape) {
-      shape
-        .setScale(zone.levels[zone.level])
-        .setCircle(zone.levels[zone.level] * 250, {
-          isStatic: true,
-        });
-    });
-  } else if (zone.type == 1) {
-    zone.shapes.forEach(function (shape) {
-      scene.tweens.killTweensOf(shape);
-      shape.destroy();
-    });
-    for (i = 0; i < 3; i++) {
-      var ramp1 = matter.add
-        .image(340, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(40, 1)
-        .setAngle(0);
-      var ramp2 = matter.add
-        .image(340, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(40, 1)
-        .setAngle(90);
-      scene.tweens.add({
-        targets: ramp1,
-        rotation: Phaser.Math.DegToRad(360),
-        duration: zone.levels[zone.level] * 800,
-        ease: "Linear",
-        repeat: -1,
-      });
-      scene.tweens.add({
-        targets: ramp2,
-        rotation: Phaser.Math.DegToRad(450),
-        duration: zone.levels[zone.level] * 800,
-        ease: "Linear",
-        repeat: -1,
-      });
-      zone.shapes.push(ramp1);
-      zone.shapes.push(ramp2);
-    }
-  } else if (zone.type == 2) {
-    var counter = true;
-    zone.shapes.forEach(function (shape) {
-      if (counter) {
-        shape.setX(240 - zone.levels[zone.level]);
-      } else {
-        shape.setX(440 + zone.levels[zone.level]);
-      }
-      counter = !counter;
-    });
-  } else if (zone.type == 4) {
-    var even = true;
-    zone.shapes.forEach(function (shape) {
-      if (even) {
-        shape.setAngle(zone.levels[zone.level][0]);
-      } else {
-        shape.setAngle(zone.levels[zone.level][1]);
-      }
-      even = !even;
-    });
-  } else if (zone.type == 5) {
-    zone.shapes.forEach(function (shape) {
-      scene.tweens.killTweensOf(shape);
-      shape.destroy();
-    });
-    for (i = 0; i < 3; i++) {
-      var ramp1 = matter.add
-        .image(200, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(1, 12);
-      var ramp2 = matter.add
-        .image(480, zone.type * 1500 + 400 + i * 400, "rectangle", null, {
-          isStatic: true,
-        })
-        .setScale(1, 12);
-      scene.tweens.add({
-        targets: ramp1,
-        x: 480,
-        duration: zone.levels[zone.level] * 300,
-        ease: "Linear",
-        repeat: -1,
-      });
-      scene.tweens.add({
-        targets: ramp2,
-        x: 200,
-        duration: zone.levels[zone.level] * 300,
-        ease: "Linear",
-        repeat: -1,
-      });
-      zone.shapes.push(ramp1);
-      zone.shapes.push(ramp2);
-    }
-  } else if (zone.type == 6) {
-    zone.shapes.forEach(function (shape) {
-      scene.tweens.killTweensOf(shape);
-      shape.destroy();
-    });
-    for (i = 0; i < 3; i++) {
-      for (j = -50; j < 600; j = j + 50) {
-        var shape = matter.add
-          .image(
-            j,
-            zone.type * 1500 + 290 + i * 400 - j / 5,
-            "rectangle",
-            null,
-            {
-              isStatic: true,
-            }
-          )
-          .setScale(4, 2)
-          .setAngle(10);
-        if (j != 550) {
-          var tween = scene.tweens.add({
-            targets: shape,
-            x: "+=50",
-            y: "-=10",
-            duration: zone.levels[zone.level] * 100,
-            ease: "Linear",
-            repeat: -1,
-          });
-          zone.shapes.push(shape);
-        } else {
-          var tween = scene.tweens.add({
-            targets: shape,
-            x: "+=25",
-            y: "-=5",
-            scaleY: 0.01,
-            scaleX: 0.01,
-            duration: zone.levels[zone.level] * 100,
-            ease: "Linear",
-            repeat: -1,
-          });
-          zone.shapes.push(shape);
-        }
-      }
-      for (j = 700; j > 100; j = j - 50) {
-        var shape = matter.add
-          .image(
-            j,
-            zone.type * 1500 + 340 + i * 400 + j / 5,
-            "rectangle",
-            null,
-            {
-              isStatic: true,
-            }
-          )
-          .setScale(4, 2)
-          .setAngle(-10);
-        if (j != 150) {
-          var tween = scene.tweens.add({
-            targets: shape,
-            x: "-=50",
-            y: "-=10",
-            duration: zone.levels[zone.level] * 100,
-            ease: "Linear",
-            repeat: -1,
-          });
-          zone.shapes.push(shape);
-        } else {
-          var tween = scene.tweens.add({
-            targets: shape,
-            x: "-=25",
-            y: "-=5",
-            scaleY: 0.01,
-            scaleX: 0.01,
-            duration: zone.levels[zone.level] * 100,
-            ease: "Linear",
-            repeat: -1,
-          });
-          zone.shapes.push(shape);
-        }
-      }
-    }
-  } else if (zone.type == 7) {
-    var counter = 0;
-    zone.shapes.forEach(function (shape) {
-      if (counter < 12) {
-        shape.setX(200 - zone.levels[zone.level]);
-      } else {
-        shape.setX(550 + zone.levels[zone.level]);
-      }
-      counter++;
-    });
-  }
-  drawShopPanel();
+  zone.upgrade();
+  spendMoney(cost);
 }
 
 function upgradeSpawn(spawn) {
-  var cost = spawn.cost.mul(spawn.costModifier.pow(spawn.level + 1));
-  if (currentScore.lt(cost)) {
+  var cost = spawn.cost;
+  if (gameState.money.lt(cost)) {
     return -1;
   }
-  currentScore = currentScore.minus(cost);
-  $("#goldValue").html(displayNumber(currentScore));
   spawn.level++;
-  drawShopPanel();
+  spendMoney(cost);
 }
 
 function upgradeToken(token) {
   var cost = token.getCost();
-  if (tokens.lt(cost) || token.level === token.maxLevel) {
+  if (gameState.tokens.lt(cost) || token.level === token.maxLevel) {
     return -1;
   }
-  tokens = tokens.minus(cost);
-  $("#tokenValue").html(displayNumber(tokens));
+  gameState.tokens = gameState.tokens.minus(cost);
+  $("#tokenValue").html(displayNumber(gameState.tokens));
   token.level++;
-  const mod = tokenUpgrades["zone_unlock_cost"].getValue();
-  const lockPrice = new Decimal(zonePrices[zoneCount] * mod);
-  lockedContainer.price = new Decimal(lockPrice);
-  lockedContainer.list[1].text = displayNumber(lockPrice);
+  checkLock();
   drawShopPanel();
 }
 
 function displayNumber(y) {
+  if (y == "MAX") {
+    return y;
+  }
+  y = Decimal(y)
   try {
     if (y.e < 9) {
       return y
@@ -1410,14 +680,10 @@ function displayNumber(y) {
 }
 
 function checkLock() {
-  if (zoneCount < 8) {
+  if (zones.length < available_zones.length) {
     const mod = tokenUpgrades["zone_unlock_cost"].getValue();
     const lockPrice = new Decimal(lockedContainer.price * mod);
-    if (lockedContainer.price.lte(currentScore)) {
-      lockedContainer.locked = false;
-    } else {
-      lockedContainer.locked = true;
-    }
+    lockedContainer.locked = gameState.money.lt(lockPrice);
     if (lockedContainer.locked) {
       lockedContainer.list[0].setTexture("locked");
       lockedContainer.list[1].setColor("#f61a06");
@@ -1489,8 +755,8 @@ function parseVertices(vertexSets, options) {
 }
 
 function drawShopPanel() {
-  $("#goldValue").html(displayNumber(currentScore));
-  $("#tokenValue").html(displayNumber(tokens));
+  $("#goldValue").html(displayNumber(gameState.money));
+  $("#tokenValue").html(displayNumber(gameState.tokens));
   if ($("#ballShop").is(":visible")) {
     for (var i = 0; i < spawns.length; i++) {
       const spawn = spawns[i];
@@ -1504,50 +770,22 @@ function drawShopPanel() {
       } else {
         const mod = tokenUpgrades["ball_multiplier"].getValue();
         if (spawn.level === 0) {
-          $("#ball" + i + "Value").html(
-            displayNumber(
-              mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level)))
-            )
-          );
-          $("#ball" + i + "Cooldown").html(
-            displayNumber(spawn.cooldown - spawn.speedModifier * spawn.level)
-          );
-        } else if (spawn.level < 11) {
-          $("#ball" + i + "Value").html(
-            displayNumber(
-              mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level - 1)))
-            ) +
-            " > " +
-            displayNumber(
-              mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level)))
-            )
-          );
-          $("#ball" + i + "Cooldown").html(
-            displayNumber(
-              spawn.cooldown - spawn.speedModifier * (spawn.level - 1)
-            ) +
-            " > " +
-            displayNumber(spawn.cooldown - spawn.speedModifier * spawn.level)
-          );
+          $("#ball" + i + "Value").html(displayNumber(mod.mul(spawn.value)));
+          $("#ball" + i + "Cooldown").html(displayNumber(spawn.cooldown));
         } else {
           $("#ball" + i + "Value").html(
-            displayNumber(
-              mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level - 1)))
-            ) +
+            displayNumber(mod.mul(spawn.value)) +
             " > " +
-            displayNumber(
-              mod.mul(spawn.value.mul(spawn.valueModifier.pow(spawn.level)))
-            )
+            displayNumber(mod.mul(spawn.next_value))
           );
           $("#ball" + i + "Cooldown").html(
-            displayNumber(spawn.cooldown - spawn.speedModifier * 10) + " > MAX"
+            displayNumber(spawn.cooldown) +
+            " > " +
+            displayNumber(spawn.next_cooldown)
           );
         }
-        const cost = spawn.cost.mul(spawn.costModifier.pow(spawn.level + 1));
-        let color = "black";
-        if (cost.gte(currentScore)) {
-          color = "red";
-        }
+        let cost = spawn.cost;
+        let color = cost.lte(gameState.money) ? "black" : "red";
         $("#ball" + i + "Cost").html(displayNumber(cost));
         $("#ball" + i + "Level").html(spawn.level);
         $("#ball" + i + "Cost").css("color", color);
@@ -1559,13 +797,8 @@ function drawShopPanel() {
     for (var i = 0; i < 8; i++) {
       if (zones.length > i) {
         $("#zone" + i + "Effect").html("Effect: " + zoneStrings[i]);
-        const cost = new Decimal(zonePrices[i]).mul(
-          zones[i].costModifier.pow(zones[i].level + 1)
-        );
-        let color = "black";
-        if (cost.gte(currentScore)) {
-          color = "red";
-        }
+        const cost = zones[i].cost;
+        let color = cost.lte(gameState.money) ? "black" : "red";
         $("#zone" + i + "cost").html(displayNumber(cost));
         $("#zone" + i + "cost").css("color", color);
         const mod = tokenUpgrades["zone_multiplier"].getValue();
@@ -1590,19 +823,19 @@ function drawShopPanel() {
       // Update bonus and cost
       if (tokenUpgrade.level !== tokenUpgrade.maxLevel) {
         $("#" + upgrade_name + "Value").html(
-          displayNumber(tokenUpgrade.getValue().mul(100) + "% > " + tokenUpgrade.getNextValue().mul(100)) + "%"
+          displayNumber(tokenUpgrade.getValue().mul(100)) + "% > " +
+          displayNumber(tokenUpgrade.getNextValue().mul(100)) + "%"
         );
         const cost = tokenUpgrade.getCost();
         let color = "black";
-        if (cost.gte(tokens)) {
+        if (cost.gte(gameState.tokens)) {
           color = "red";
         }
         $("#" + upgrade_name + "Cost").html(displayNumber(cost));
         $("#" + upgrade_name + "Cost").css("color", color);
       } else {
         $("#" + upgrade_name + "Value").html(
-          displayNumber(tokenUpgrade.value.plus(tokenUpgrade.level)) +
-          "%"
+          displayNumber(tokenUpgrade.getValue().mul(100)) + "%"
         );
         $("#" + upgrade_name + "Cost").html("MAX");
       }
@@ -1619,26 +852,24 @@ function drawShopPanel() {
 }
 
 function save() {
+  const saveSpawns = [];
+  _.each(spawns, function (spawn) {
+    saveSpawns.push(spawn.level);
+  });
   const saveZones = [];
   _.each(zones, function (zone) {
-    saveZones.push({
-      level: zone.level,
-      type: zone.type,
-    });
+    saveZones.push(zone.level);
   });
-  const obj = {
-    spawns: spawns,
-    tokenUpgrades: tokenUpgrades,
-    money: currentScore.toString(),
-    zones: saveZones,
-    numberFormat: numberFormat,
-    tokens: tokens.toString(),
-    totalMoney: totalScore.toString(),
-    sps: calculateScorePerSecond().toString(),
-    time: Date.now(),
-  };
+  const saveTokenUpgrades = {};
+  for (var upgrade_name in tokenUpgrades) {
+    saveTokenUpgrades[upgrade_name] = tokenUpgrades[upgrade_name].level
+  }
+  gameState.time = Date.now();
+  gameState.zones = saveZones;
+  gameState.spawns = saveSpawns;
+  gameState.tokenUpgrades = saveTokenUpgrades;
   if (typeof Storage !== "undefined") {
-    localStorage.setItem("save", JSON.stringify(obj));
+    localStorage.setItem("save", JSON.stringify(gameState));
   }
 }
 
@@ -1647,39 +878,26 @@ function load() {
     let save = localStorage.getItem("save");
     if (save) {
       save = JSON.parse(save);
-      currentScore = new Decimal(save.money || 0);
-      totalScore = new Decimal(save.totalMoney || 0);
-      tokens = new Decimal(save.tokens || 0);
-      numberFormat = save.numberFormat;
+      gameState = save
+      gameState.money = new Decimal(gameState.money);
+      gameState.totalMoney = new Decimal(gameState.totalMoney);
+      gameState.tokens = new Decimal(gameState.tokens);
+      gameState.sps = new Decimal(gameState.sps);
+
+
       $(".numOpt").removeClass("selected");
-      $('.numOpt[value="' + numberFormat + '"').addClass("selected");
-      if (save.spawns && save.spawns.length > 0) {
-        spawns = save.spawns;
-        _.each(spawns, function (spawn, index) {
-          spawn.value = new Decimal(spawnTemplate[index].value);
-          spawn.costModifier = new Decimal(spawnTemplate[index].costModifier);
-          spawn.valueModifier = new Decimal(spawnTemplate[index].valueModifier);
-          spawn.cost = new Decimal(spawnTemplate[index].cost);
-        });
+      $('.numOpt[value="' + gameState.numberFormat + '"').addClass("selected");
+
+      for (var i = 0; i < save.spawns.length; ++i) {
+        spawns[i].level = save.spawns[i]
       }
-      if (save.tokenUpgrades && save.tokenUpgrades.length > 0) {
-        tokenUpgrades = save.tokenUpgrades;
-        _.each(tokenUpgrades, function (tokenUpgrade, index) {
-          tokenUpgrade.valueModifier = new Decimal(
-            tokenTemplate[index].valueModifier || 0
-          );
-          tokenUpgrade.value = new Decimal(tokenTemplate[index].value || 0);
-          tokenUpgrade.costModifier = new Decimal(
-            tokenTemplate[index].costModifier || 0
-          );
-          tokenUpgrade.cost = new Decimal(tokenTemplate[index].cost || 0);
-        });
+      for (var i = 0; i < save.zones.length; ++i) {
+        generateZone(save.zones[i]);
       }
-      if (save.zones && save.zones.length > 0) {
-        _.each(save.zones, function (zone) {
-          generateZone(zone.level);
-        });
-      } else {
+      for (var i in save.tokenUpgrades) {
+        tokenUpgrades[i].level = save.tokenUpgrades[i];
+      }
+      if (save.zones.length == 0) {
         generateZone();
       }
       if (save.time) {
@@ -1687,20 +905,18 @@ function load() {
         updateProgress();
         currentTime = Date.now();
       }
-    } else {
-      generateZone();
+      return;
     }
-  } else {
-    generateZone();
   }
+  // Default to generate first zone
+  generateZone();
 }
 
 function prestige() {
   GAObject.submitEvent("prestige", 1);
-  tokens = tokens.add(calcuateTokens());
-  currentScore = new Decimal(0); //total score
-  totalScore = new Decimal(0); //total score
-  zoneCount = 0;
+  gameState.tokens = gameState.tokens.add(calcuateTokens());
+  gameState.money = new Decimal(0);
+  gameState.totalMoney = new Decimal(0);
   zones = [];
   lockedContainer = null;
   for (let i = balls.length - 1; i >= 0; i--) {
@@ -1708,14 +924,17 @@ function prestige() {
     ball.destroy();
   }
   balls = [];
-  spawns = JSON.parse(JSON.stringify(spawnTemplate));
+  for (var i in spawns) {
+    spawns[i].level = 0
+  }
+  spawns[0].levelUp()
   save();
   game.scene.getScene("gameScene").scene.restart();
 }
 
 function calcuateTokens() {
   let tokenCost = new Decimal(125000);
-  let score = new Decimal(totalScore);
+  let score = new Decimal(gameState.totalMoney);
   let tokens = new Decimal(0);
   const mod = tokenUpgrades["token_multiplier"].getValue()
   while (score.gte(tokenCost)) {
@@ -1732,8 +951,7 @@ function updateProgress() {
   if (millis > 30) {
     let scorePerSecond = calculateScorePerSecond();
     addedScore = scorePerSecond.mul(millis);
-    currentScore = currentScore.plus(addedScore);
-    totalScore = totalScore.plus(addedScore);
+    addMoney(addedScore);
     $("#offlineText").html(
       "Inactive for " +
       displayNumber(Math.floor(millis)) +
@@ -1749,19 +967,90 @@ function calculateScorePerSecond() {
   let scorePerSecond = new Decimal(0);
   for (var i = 0; i < spawns.length; i++) {
     if (spawns[i].level > 0 && zones[spawns[i].stage - 1]) {
-      let cooldown =
-        spawns[i].cooldown - spawns[i].speedModifier * (spawns[i].level - 1);
-      if (spawns[i].level > 10) {
-        cooldown = spawns[i].cooldown - spawns[i].speedModifier * 10;
-      }
+      let cooldown = spawns[i].cooldown;
       const mod = tokenUpgrades["ball_multiplier"].getValue();
-      const value = mod.mul(
-        spawns[i].value.mul(spawns[i].valueModifier.pow(spawns[i].level - 1))
-      );
+      const value = mod.mul(spawns[i].value);
       cooldown = cooldown / 100;
       let sps = value / cooldown;
       scorePerSecond = scorePerSecond.plus(sps);
     }
   }
   return scorePerSecond.gt(0) ? scorePerSecond : new Decimal(0);
+}
+
+function handleMouseBreak(point, scale) {
+
+  let ballCount = 0;
+  let maxDistance = scale * 250 + 7;
+  let sqrMaxDistance = maxDistance * maxDistance;
+  for (let i = balls.length - 1; i >= 0; i--) {
+    let ball = balls[i];
+    let deltaX = ball.x - point.worldX;
+    let deltaY = ball.y - point.worldY;
+    let sqrDistanceToBall = deltaX * deltaX + deltaY * deltaY;
+    if (sqrDistanceToBall < sqrMaxDistance) {
+      ballCount++;
+      scoreBall(ball, tokenUpgrades["click_multiplier"].getValue());
+      ball.destroy();
+      balls.splice(i, 1);
+    }
+  }
+  return ballCount;
+}
+
+function scoreBall(ball, multiplier = 1) {
+  let value = ball.value.mul(multiplier);
+  if (scene.adManager.doublePoints) {
+    value = value.mul(2);
+  }
+
+  if (ball.y > camera.scrollY && ball.y < camera.scrollY + 600) {
+    const text = scene.add.text(ball.x, ball.y, displayNumber(value), {
+      fontFamily: "Arial",
+      fontSize: 12,
+      color: "#ffff00",
+    });
+    scene.tweens.add({
+      targets: text,
+      y: ball.y - 50,
+      duration: 700,
+      ease: "Linear",
+      onComplete: function (tween, targets) {
+        text.destroy();
+      },
+    });
+  }
+  addMoney(value);
+}
+
+function randomChance() {
+  return Phaser.Math.Between(0, 99) / 100;
+}
+
+function getEmptyGameState() {
+  return {
+    money: Decimal(0),
+    totalMoney: Decimal(0),
+    tokens: Decimal(0),
+    sps: Decimal(0),
+    time: Date.now(),
+    spawns: spawnLevels,
+    numberFormat: numberFormat,
+    tokenUpgrades: tokenUpgrades,
+    zones: [],
+  };
+}
+
+function addMoney(amount) {
+  gameState.money = gameState.money.add(amount)
+  gameState.totalMoney = gameState.totalMoney.add(amount);
+  $("#goldValue").html(displayNumber(gameState.money));
+  checkLock();
+  drawShopPanel();
+}
+
+function spendMoney(amount) {
+  gameState.money = gameState.money.sub(amount)
+  checkLock();
+  drawShopPanel();
 }

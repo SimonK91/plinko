@@ -32,17 +32,17 @@ ball_survival_chance.getValue = function () {
 ball_survival_chance.getNextValue = () => getNextValue(ball_survival_chance);
 ball_survival_chance.getCost = () => getCost(ball_survival_chance);
 
-var double_ball_value = {};
-double_ball_value.level = 0;
-double_ball_value.value = new Decimal(0);
-double_ball_value.costModifier = new Decimal(1.8);
-double_ball_value.cost = new Decimal(7.5);
-double_ball_value.maxLevel = 51;
-double_ball_value.getValue = function () {
-    return new Decimal(double_ball_value.level).div(100);
+var double_ball_value_chance = {};
+double_ball_value_chance.level = 0;
+double_ball_value_chance.value = new Decimal(0);
+double_ball_value_chance.costModifier = new Decimal(1.8);
+double_ball_value_chance.cost = new Decimal(7.5);
+double_ball_value_chance.maxLevel = 51;
+double_ball_value_chance.getValue = function () {
+    return new Decimal(double_ball_value_chance.level).div(100);
 }
-double_ball_value.getNextValue = () => getNextValue(double_ball_value);
-double_ball_value.getCost = () => getCost(double_ball_value);
+double_ball_value_chance.getNextValue = () => getNextValue(double_ball_value_chance);
+double_ball_value_chance.getCost = () => getCost(double_ball_value_chance);
 
 var click_area = {};
 click_area.level = 0;
@@ -111,7 +111,7 @@ token_multiplier.getCost = () => getCost(token_multiplier);
 var tokenUpgrades = {
     "ball_multiplier": ball_multiplier,
     "ball_survival_chance": ball_survival_chance,
-    "double_ball_value": double_ball_value,
+    "double_ball_value_chance": double_ball_value_chance,
     "click_area": click_area,
     "click_multiplier": click_multiplier,
     "zone_unlock_cost": zone_unlock_cost,
